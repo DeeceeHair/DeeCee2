@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Heart, User, Search, ShoppingCart, Menu, X, Star, Truck, Shield, CreditCard, ChevronLeft, ChevronRight, Calendar, Play, Pause, Volume2, VolumeX, Sparkles, Gift, Package } from "lucide-react";
 import ShopPage from './shop';
 import ProductPage from './product';
@@ -210,6 +211,10 @@ const VideoReelCard = ({ video }: { video: ReelVideo }) => {
 
 function DeeceeHairApp(): React.ReactElement {
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedColor, setSelectedColor] = useState("");
@@ -224,22 +229,63 @@ function DeeceeHairApp(): React.ReactElement {
   const [showSignup, setShowSignup] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
 
+  // Update current page based on URL
+  useEffect(() => {
+    const path = pathname.replace('/', '');
+    if (path === '') {
+      setCurrentPage('home');
+    } else if (['shop', 'product', 'cart', 'contact', 'appointment', 'terms', 'profile'].includes(path)) {
+      setCurrentPage(path as Page);
+    }
+
+    // Handle query parameters
+    const category = searchParams.get('category');
+    if (category) {
+      setFilterCategory(category);
+    }
+
+    const productId = searchParams.get('id');
+    if (productId && path === 'product') {
+      const product = products.find(p => p.id === parseInt(productId));
+      if (product) {
+        setSelectedProduct(product);
+      }
+    }
+  }, [pathname, searchParams]);
+
   useEffect(() => {
     const interval = setInterval(() => setCurrentSlide((prev) => (prev + 1) % heroSlides.length), 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const navigateTo = useCallback((page: Page, category = "all") => {
+  const navigateTo = useCallback((page: Page, category = "all", productId?: number) => {
     // Check if trying to access profile without login
     if (page === "profile" && !isAuthenticated) {
       setShowLogin(true);
       return;
     }
 
+    // Update URL based on page
+    let url = `/${page === 'home' ? '' : page}`;
+    const params = new URLSearchParams();
+
+    if (page === 'shop' && category !== 'all') {
+      params.set('category', category);
+    }
+
+    if (page === 'product' && productId) {
+      params.set('id', productId.toString());
+    }
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    router.push(url);
     setCurrentPage(page);
     setFilterCategory(category);
     setMobileMenuOpen(false);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   const addToCart = useCallback(() => {
     if (!selectedProduct || !selectedColor || !selectedSize) {
@@ -288,7 +334,7 @@ function DeeceeHairApp(): React.ReactElement {
                   {item}
                 </button>
               ))}
-              <button onClick={() => { setFilterCategory("mans"); setCurrentPage("shop"); }} className="text-sm font-medium text-gray-700 hover:text-rose-600 transition focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
+              <button onClick={() => navigateTo("shop", "mans")} className="text-sm font-medium text-gray-700 hover:text-rose-600 transition focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
                 Mans Collection
               </button>
               <button className="text-sm font-medium text-gray-700 hover:text-rose-600 transition focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
@@ -347,7 +393,7 @@ function DeeceeHairApp(): React.ReactElement {
                 {item}
               </button>
             ))}
-            <button onClick={() => { setFilterCategory("mans"); setCurrentPage("shop"); setMobileMenuOpen(false); }} className="text-sm font-medium text-gray-700 hover:text-rose-600 transition text-left focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
+            <button onClick={() => { navigateTo("shop", "mans"); setMobileMenuOpen(false); }} className="text-sm font-medium text-gray-700 hover:text-rose-600 transition text-left focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
               Mans Collection
             </button>
             <button className="text-sm font-medium text-gray-700 hover:text-rose-600 transition text-left focus:outline-none focus:ring-2 focus:ring-rose-600 rounded">
@@ -428,7 +474,7 @@ function DeeceeHairApp(): React.ReactElement {
               { type: "Wavy", image: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=400&q=80" },
               { type: "Curly", image: "/hero3.jpg" },
             ].map((item) => (
-              <div key={item.type} className="group cursor-pointer" onClick={() => { setFilterCategory(item.type.toLowerCase()); setCurrentPage("shop"); }}>
+              <div key={item.type} className="group cursor-pointer" onClick={() => navigateTo("shop", item.type.toLowerCase())}>
                 <div className="relative overflow-hidden rounded-2xl shadow-lg">
                   <img src={item.image} alt={item.type} className="w-full h-64 sm:h-80 object-cover group-hover:scale-110 transition duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -451,7 +497,12 @@ function DeeceeHairApp(): React.ReactElement {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {products.filter(p => p.isMans).map((product) => (
-              <div key={product.id} className="group cursor-pointer rounded-2xl shadow-lg overflow-hidden bg-white hover:shadow-2xl transition-all duration-300" onClick={() => { setSelectedProduct(product); setSelectedColor(""); setSelectedSize(""); setCurrentPage("product"); }}>
+              <div key={product.id} className="group cursor-pointer rounded-2xl shadow-lg overflow-hidden bg-white hover:shadow-2xl transition-all duration-300" onClick={() => {
+                setSelectedProduct(product);
+                setSelectedColor("");
+                setSelectedSize("");
+                navigateTo("product", "all", product.id);
+              }}>
                 <div className="relative overflow-hidden">
                   <img src={product.image} alt={product.name} className="w-full h-64 sm:h-80 object-cover group-hover:scale-110 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -466,7 +517,7 @@ function DeeceeHairApp(): React.ReactElement {
           </div>
           <div className="text-center mt-8">
             <button
-              onClick={() => { setFilterCategory("mans"); setCurrentPage("shop"); }}
+              onClick={() => navigateTo("shop", "mans")}
               className="bg-rose-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-rose-700 transition"
             >
               View All Mans Products
@@ -522,7 +573,7 @@ function DeeceeHairApp(): React.ReactElement {
               setSelectedProduct(product);
               setSelectedColor("");
               setSelectedSize("");
-              setCurrentPage("product");
+              navigateTo("product", "all", product.id);
             }}
           />
         )}
@@ -534,7 +585,7 @@ function DeeceeHairApp(): React.ReactElement {
             selectedSize={selectedSize}
             setSelectedSize={setSelectedSize}
             onAddToCart={addToCart}
-            onBackToShop={() => setCurrentPage("shop")}
+            onBackToShop={() => navigateTo("shop")}
           />
         )}
         {currentPage === "cart" && (
@@ -567,7 +618,7 @@ function DeeceeHairApp(): React.ReactElement {
           }}
           onLoginSuccess={() => {
             setShowLogin(false);
-            setCurrentPage("profile");
+            navigateTo("profile");
           }}
           onNeedsVerification={() => {
             setShowVerification(true);
@@ -596,7 +647,7 @@ function DeeceeHairApp(): React.ReactElement {
           onClose={() => setShowVerification(false)}
           onVerificationSuccess={() => {
             setShowVerification(false);
-            setCurrentPage("profile");
+            navigateTo("profile");
           }}
         />
       )}
