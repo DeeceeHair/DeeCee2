@@ -1,22 +1,27 @@
-sudo bash setup_zram_swap.sh
 #!/bin/bash
 # ------------------------------------------------------------
-# Safe ZRAM + SWAP configuration for Ubuntu 22.04 LTS (Server)
-# Author: Manan's optimized setup (GPT-5)
+# Combined Android Build Environment + ZRAM/Swap Setup
+# Author: Manan Agarwal
 # ------------------------------------------------------------
 
 set -e
 
+echo "📦 Step 1: Cloning Android build environment scripts..."
+git clone https://github.com/akhilnarang/scripts
+cd scripts
+echo "⚙️ Running Android build environment setup..."
+bash setup/android_build_env.sh
+cd ..
+
+echo
+echo "💾 Step 2: Running ZRAM + swap setup..."
+# ------------------ ZRAM Swap Script ------------------------
 echo "🧹 Cleaning old configurations..."
 swapoff -a || true
 systemctl stop zramswap.service 2>/dev/null || true
 
-# Comment out any existing swap entry in fstab to avoid duplicates
 sed -i 's|^/swapfile none swap sw 0 0|# /swapfile none swap sw 0 0|' /etc/fstab
 
-# ------------------------------------------------------------
-# 🧱 Step 1: Create 16 GB Disk Swap
-# ------------------------------------------------------------
 echo "🪶 Creating 16GB swapfile..."
 if [ ! -f /swapfile ]; then
   fallocate -l 16G /swapfile
@@ -26,10 +31,7 @@ fi
 swapon /swapfile
 grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# ------------------------------------------------------------
-# 🧩 Step 2: Install and Configure ZRAM (Safe Dynamic Size)
-# ------------------------------------------------------------
-echo "⚙️  Installing zram-tools..."
+echo "⚙️ Installing zram-tools..."
 apt update -y
 apt install -y zram-tools
 
@@ -38,27 +40,20 @@ cat <<EOF > /etc/default/zramswap
 # ZRAM configuration (auto-safe)
 ENABLED=true
 ALGO=zstd
-# Use 200% of system RAM as compressed ZRAM (auto scales)
 PERCENTAGE=200
-# Number of ZRAM devices (1 is usually best)
 NUM_DEVICES=1
 EOF
 
 systemctl enable zramswap.service
 systemctl restart zramswap.service
 
-# ------------------------------------------------------------
-# ⚙️ Step 3: Kernel Parameter Tuning
-# ------------------------------------------------------------
-echo "⚙️  Applying performance tuning..."
+echo "⚙️ Applying kernel tuning..."
 grep -q 'vm.swappiness' /etc/sysctl.conf || echo 'vm.swappiness=10' >> /etc/sysctl.conf
 grep -q 'vm.vfs_cache_pressure' /etc/sysctl.conf || echo 'vm.vfs_cache_pressure=50' >> /etc/sysctl.conf
 sysctl -p
 
-# ------------------------------------------------------------
-# ✅ Step 4: Verify Everything
-# ------------------------------------------------------------
-echo "✅ Setup complete. Current memory status:"
+echo
+echo "✅ Full setup complete. Current memory status:"
 free -h
 echo
 echo "Swap devices:"
